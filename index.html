@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>注文フォーム</title>
+  <style>
+    :root {
+      --green: #06C755;
+      --green-dark: #05a846;
+      --bg: #f0f2f5;
+      --card: #ffffff;
+      --text: #1a1a1a;
+      --sub: #666;
+      --border: #e0e0e0;
+      --error: #e53935;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Hiragino Kaku Gothic ProN', 'Noto Sans JP', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ===== ヘッダー ===== */
+    .header {
+      background: var(--green);
+      color: white;
+      padding: 16px 20px 12px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .header h1 { font-size: 17px; font-weight: 700; }
+
+    /* ===== ステップインジケーター ===== */
+    .steps {
+      display: flex;
+      align-items: center;
+      padding: 14px 20px;
+      background: white;
+      border-bottom: 1px solid var(--border);
+      gap: 0;
+    }
+    .step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+    }
+    .step-circle {
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--sub);
+      background: white;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .step-label { font-size: 11px; color: var(--sub); }
+    .step-line { flex: 1; height: 2px; background: var(--border); margin: 0 4px; }
+    .step.active .step-circle { background: var(--green); border-color: var(--green); color: white; }
+    .step.active .step-label { color: var(--green); font-weight: 600; }
+    .step.done .step-circle { background: var(--green); border-color: var(--green); color: white; }
+    .step.done .step-line { background: var(--green); }
+
+    /* ===== コンテンツ ===== */
+    .content { padding: 20px 16px; max-width: 520px; margin: 0 auto; }
+
+    /* ===== カード ===== */
+    .card {
+      background: var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    }
+    .card-title {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--green-dark);
+      margin-bottom: 16px;
+      padding-bottom: 10px;
+      border-bottom: 2px solid #e8f5e9;
+    }
+
+    /* ===== フォーム ===== */
+    .form-group { margin-bottom: 16px; }
+    .form-group:last-child { margin-bottom: 0; }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+      color: var(--text);
+    }
+    label .required {
+      color: var(--error);
+      margin-left: 3px;
+      font-size: 11px;
+    }
+
+    input[type="text"],
+    input[type="tel"],
+    input[type="email"] {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 16px; /* 16px以上でiOSのズームを防ぐ */
+      color: var(--text);
+      background: #fafafa;
+      transition: border-color 0.15s;
+      -webkit-appearance: none;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--green);
+      background: white;
+    }
+    input.error { border-color: var(--error); }
+    .error-msg { font-size: 12px; color: var(--error); margin-top: 4px; }
+
+    .postal-row { display: flex; gap: 8px; align-items: flex-start; }
+    .postal-row input { flex: 1; }
+    .postal-btn {
+      padding: 12px 12px;
+      background: #f0f0f0;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: 13px;
+      cursor: pointer;
+      white-space: nowrap;
+      color: var(--text);
+      flex-shrink: 0;
+    }
+    .postal-btn:active { background: #e0e0e0; }
+
+    /* ===== 商品選択 ===== */
+    .product-list { display: flex; flex-direction: column; gap: 10px; }
+
+    .product-item {
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      padding: 14px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      transition: border-color 0.15s;
+    }
+    .product-item.selected { border-color: var(--green); background: #f0fbf4; }
+
+    .product-info { flex: 1; }
+    .product-name { font-size: 15px; font-weight: 600; }
+    .product-price { font-size: 13px; color: var(--sub); margin-top: 2px; }
+
+    .qty-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .qty-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1.5px solid var(--border);
+      background: white;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      transition: all 0.15s;
+    }
+    .qty-btn:active { background: #f0f0f0; }
+    .qty-btn.plus { border-color: var(--green); color: var(--green); }
+    .qty-num { font-size: 18px; font-weight: 700; min-width: 24px; text-align: center; }
+
+    /* ===== 注文確認 ===== */
+    .order-summary { display: flex; flex-direction: column; gap: 8px; }
+    .order-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      padding: 6px 0;
+    }
+    .order-row + .order-row { border-top: 1px solid #f0f0f0; }
+    .order-row.total {
+      font-size: 16px;
+      font-weight: 700;
+      border-top: 2px solid var(--border) !important;
+      padding-top: 12px;
+      margin-top: 4px;
+    }
+    .user-info-summary { font-size: 13px; color: var(--sub); line-height: 1.7; }
+
+    /* ===== ボタン ===== */
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 15px;
+      border-radius: 10px;
+      border: none;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.15s;
+      text-align: center;
+    }
+    .btn-primary {
+      background: var(--green);
+      color: white;
+    }
+    .btn-primary:active { background: var(--green-dark); transform: scale(0.99); }
+    .btn-primary:disabled { background: #b0b0b0; cursor: not-allowed; }
+    .btn-secondary {
+      background: white;
+      color: var(--sub);
+      border: 1.5px solid var(--border);
+      margin-top: 10px;
+    }
+    .btn-secondary:active { background: #f5f5f5; }
+
+    .btn-row { display: flex; flex-direction: column; gap: 0; margin-top: 20px; }
+
+    /* ===== ローディング ===== */
+    .loading {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 20px;
+      gap: 16px;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e0e0e0;
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-text { font-size: 14px; color: var(--sub); }
+
+    /* ===== エラー ===== */
+    .alert {
+      background: #fff3f3;
+      border: 1px solid #ffcdd2;
+      border-radius: 8px;
+      padding: 12px 16px;
+      font-size: 13px;
+      color: var(--error);
+      margin-bottom: 16px;
+    }
+
+    /* ===== 合計バー ===== */
+    .total-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 1px solid var(--border);
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 10;
+    }
+    .total-bar-label { font-size: 13px; color: var(--sub); }
+    .total-bar-amount { font-size: 20px; font-weight: 700; color: var(--text); }
+    .total-bar-spacer { height: 70px; } /* ボタン分のスペース */
+
+    /* ===== 非表示 ===== */
+    [data-step] { display: none; }
+    [data-step].active { display: block; }
+  </style>
+</head>
+<body>
+
+<div class="header">
+  <h1 id="headerTitle">注文フォーム</h1>
+</div>
+
+<!-- ステップインジケーター（注文フォームと確認画面のみ表示） -->
+<div class="steps" id="stepIndicator" style="display:none">
+  <div class="step" id="si1">
+    <div class="step-circle">1</div>
+    <span class="step-label">お客様情報</span>
+  </div>
+  <div class="step-line"></div>
+  <div class="step" id="si2">
+    <div class="step-circle">2</div>
+    <span class="step-label">商品選択</span>
+  </div>
+  <div class="step-line"></div>
+  <div class="step" id="si3">
+    <div class="step-circle">3</div>
+    <span class="step-label">確認・決済</span>
+  </div>
+</div>
+
+<div class="content">
+
+  <!-- ローディング -->
+  <div data-step="loading" class="active">
+    <div class="loading">
+      <div class="spinner"></div>
+      <div class="loading-text">読み込み中...</div>
+    </div>
+  </div>
+
+  <!-- Step 1: ユーザー登録 -->
+  <div data-step="register">
+    <div class="card">
+      <div class="card-title">お客様情報の登録（初回のみ）</div>
+      <div id="registerError" class="alert" style="display:none"></div>
+
+      <div class="form-group">
+        <label>お名前 <span class="required">*</span></label>
+        <input type="text" id="r_name" placeholder="山田 太郎" autocomplete="name">
+      </div>
+
+      <div class="form-group">
+        <label>郵便番号 <span class="required">*</span></label>
+        <div class="postal-row">
+          <input type="text" id="r_postal" placeholder="1234567" maxlength="7" inputmode="numeric">
+          <button class="postal-btn" onclick="lookupPostal()">住所検索</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>住所（都道府県〜番地）<span class="required">*</span></label>
+        <input type="text" id="r_address" placeholder="東京都渋谷区〇〇1-2-3" autocomplete="street-address">
+      </div>
+
+      <div class="form-group">
+        <label>建物名・部屋番号</label>
+        <input type="text" id="r_address2" placeholder="〇〇マンション101号室">
+      </div>
+
+      <div class="form-group">
+        <label>電話番号 <span class="required">*</span></label>
+        <input type="tel" id="r_phone" placeholder="09012345678" inputmode="tel" autocomplete="tel">
+      </div>
+
+      <div class="form-group">
+        <label>メールアドレス <span class="required">*</span></label>
+        <input type="email" id="r_email" placeholder="example@email.com" inputmode="email" autocomplete="email">
+      </div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="submitRegistration()">次へ：商品を選ぶ</button>
+    </div>
+  </div>
+
+  <!-- Step 2: 商品選択 -->
+  <div data-step="order">
+    <div class="card">
+      <div class="card-title">商品を選んでください</div>
+      <div id="productList" class="product-list">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+    <div class="total-bar-spacer"></div>
+  </div>
+
+  <!-- 合計バー（商品選択中に表示） -->
+  <div class="total-bar" id="totalBar" style="display:none">
+    <div>
+      <div class="total-bar-label">合計金額</div>
+      <div class="total-bar-amount" id="totalAmount">¥0</div>
+    </div>
+    <button class="btn btn-primary" style="width:auto;padding:12px 24px" onclick="goToConfirm()">注文確認へ</button>
+  </div>
+
+  <!-- Step 3: 注文確認 -->
+  <div data-step="confirm">
+    <div class="card">
+      <div class="card-title">注文内容</div>
+      <div id="orderSummary" class="order-summary"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">お届け先</div>
+      <div id="userInfoSummary" class="user-info-summary"></div>
+    </div>
+
+    <div id="confirmError" class="alert" style="display:none"></div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="payBtn" onclick="submitOrder()">Stripeで決済する</button>
+      <button class="btn btn-secondary" onclick="goBack()">← 商品選択に戻る</button>
+    </div>
+  </div>
+
+</div><!-- /content -->
+
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbzqNwai3qwkGVBAaKOYGPgtVJQv9_16uYcfE7Rsg35dHM_J5wsEQsOXD6ohp9cWNtrh/exec';
+const LIFF_ID = '2010168694-HkGwLgs9';
+
+let lineProfile = null;
+let userData = null;
+let products = [];
+let quantities = {};
+
+// ===== 初期化 =====
+
+function setLoadingText(msg) {
+  document.querySelector('[data-step="loading"] .loading-text').textContent = msg;
+}
+
+async function init() {
+  try {
+    setLoadingText('① LIFF初期化中...');
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('LIFF initタイムアウト。LIFF IDを確認してください: ' + LIFF_ID)), 8000)),
+    ]);
+
+    setLoadingText('② ログイン確認中...');
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: location.href });
+      return;
+    }
+
+    setLoadingText('③ プロフィール取得中...');
+    lineProfile = await liff.getProfile();
+
+    setLoadingText('④ ユーザー確認中...');
+    const res = await api('checkUser', { lineId: lineProfile.userId });
+    if (res.registered) {
+      userData = res.user;
+      await loadProducts();
+      showStep('order');
+    } else {
+      showStep('register');
+    }
+  } catch (err) {
+    document.querySelector('[data-step="loading"] .spinner').style.display = 'none';
+    document.querySelector('[data-step="loading"] .loading-text').innerHTML =
+      '<span style="color:red;font-weight:bold;word-break:break-all">エラー: ' + err.message + '</span>';
+  }
+}
+
+// ===== ステップ表示 =====
+
+function showStep(name) {
+  document.querySelectorAll('[data-step]').forEach(el => el.classList.remove('active'));
+  document.querySelector('[data-step="' + name + '"]').classList.add('active');
+
+  const indicator = document.getElementById('stepIndicator');
+  const titles = {
+    loading: '注文フォーム',
+    register: 'お客様情報の登録',
+    order: '商品を選ぶ',
+    confirm: '注文確認',
+  };
+  document.getElementById('headerTitle').textContent = titles[name] || '注文フォーム';
+
+  const totalBar = document.getElementById('totalBar');
+  if (name === 'order') {
+    indicator.style.display = 'flex';
+    totalBar.style.display = 'flex';
+    setStepActive(2);
+  } else if (name === 'confirm') {
+    indicator.style.display = 'flex';
+    totalBar.style.display = 'none';
+    setStepActive(3);
+  } else if (name === 'register') {
+    indicator.style.display = 'flex';
+    totalBar.style.display = 'none';
+    setStepActive(1);
+  } else {
+    indicator.style.display = 'none';
+    totalBar.style.display = 'none';
+  }
+
+  window.scrollTo(0, 0);
+}
+
+function setStepActive(n) {
+  for (let i = 1; i <= 3; i++) {
+    const el = document.getElementById('si' + i);
+    el.classList.remove('active', 'done');
+    if (i < n) el.classList.add('done');
+    else if (i === n) el.classList.add('active');
+  }
+  // ステップラインの色
+  document.querySelectorAll('.step-line').forEach((line, i) => {
+    line.style.background = (i + 1 < n) ? 'var(--green)' : 'var(--border)';
+  });
+}
+
+// ===== 郵便番号検索 =====
+
+async function lookupPostal() {
+  const postal = document.getElementById('r_postal').value.replace(/-/g, '');
+  if (postal.length !== 7) { alert('郵便番号は7桁で入力してください'); return; }
+
+  try {
+    const res = await fetch('https://zipcloud.ibsnet.co.jp/api/search?zipcode=' + postal);
+    const json = await res.json();
+    if (json.results) {
+      const r = json.results[0];
+      document.getElementById('r_address').value = r.address1 + r.address2 + r.address3;
+    } else {
+      alert('住所が見つかりませんでした');
+    }
+  } catch {
+    alert('住所検索に失敗しました');
+  }
+}
+
+// ===== ユーザー登録 =====
+
+async function submitRegistration() {
+  const name    = document.getElementById('r_name').value.trim();
+  const postal  = document.getElementById('r_postal').value.trim();
+  const address = document.getElementById('r_address').value.trim() + document.getElementById('r_address2').value.trim();
+  const phone   = document.getElementById('r_phone').value.trim();
+  const email   = document.getElementById('r_email').value.trim();
+
+  const errEl = document.getElementById('registerError');
+  errEl.style.display = 'none';
+
+  if (!name || !postal || !address || !phone || !email) {
+    errEl.textContent = '必須項目をすべて入力してください';
+    errEl.style.display = 'block';
+    return;
+  }
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    errEl.textContent = 'メールアドレスの形式が正しくありません';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const btn = event.target;
+  btn.disabled = true;
+  btn.textContent = '登録中...';
+
+  try {
+    const res = await api('registerUser', {
+      lineId: lineProfile.userId,
+      name, postalCode: postal, address, phone, email,
+    });
+    if (!res.success) throw new Error(res.error);
+
+    userData = { name, email, address, phone };
+    await loadProducts();
+    showStep('order');
+  } catch (err) {
+    errEl.textContent = 'エラー: ' + err.message;
+    errEl.style.display = 'block';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '次へ：商品を選ぶ';
+  }
+}
+
+// ===== 商品一覧 =====
+
+async function loadProducts() {
+  const res = await api('getProducts', {});
+  if (!res.success) throw new Error(res.error);
+  products = res.products;
+  quantities = {};
+  products.forEach(p => { quantities[p.id] = 0; });
+  renderProducts();
+}
+
+function renderProducts() {
+  const list = document.getElementById('productList');
+  list.innerHTML = products.map(function(p) {
+    return '<div class="product-item" id="pi-' + p.id + '">' +
+      '<div class="product-info">' +
+        '<div class="product-name">' + p.name + '</div>' +
+        '<div class="product-price">¥' + p.price.toLocaleString() + ' / ' + p.unit + '</div>' +
+      '</div>' +
+      '<div class="qty-control">' +
+        '<button class="qty-btn" onclick="changeQty(\'' + p.id + '\', -1)">−</button>' +
+        '<div class="qty-num" id="qty-' + p.id + '">0</div>' +
+        '<button class="qty-btn plus" onclick="changeQty(\'' + p.id + '\', 1)">＋</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  updateTotal();
+}
+
+function changeQty(id, delta) {
+  quantities[id] = Math.max(0, (quantities[id] || 0) + delta);
+  document.getElementById('qty-' + id).textContent = quantities[id];
+  document.getElementById('pi-' + id).classList.toggle('selected', quantities[id] > 0);
+  updateTotal();
+}
+
+function updateTotal() {
+  const total = products.reduce((sum, p) => sum + p.price * (quantities[p.id] || 0), 0);
+  document.getElementById('totalAmount').textContent = '¥' + total.toLocaleString();
+
+  const hasItems = total > 0;
+  document.querySelector('#totalBar .btn-primary').disabled = !hasItems;
+}
+
+// ===== 注文確認 =====
+
+function goToConfirm() {
+  const items = products.filter(p => quantities[p.id] > 0).map(p => ({
+    id: p.id, name: p.name, price: p.price, unit: p.unit, quantity: quantities[p.id],
+  }));
+  if (items.length === 0) { alert('商品を選択してください'); return; }
+
+  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+  // 注文内容
+  const summaryEl = document.getElementById('orderSummary');
+  summaryEl.innerHTML = items.map(function(i) {
+    return '<div class="order-row">' +
+      '<span>' + i.name + ' × ' + i.quantity + i.unit + '</span>' +
+      '<span>¥' + (i.price * i.quantity).toLocaleString() + '</span>' +
+    '</div>';
+  }).join('') +
+    '<div class="order-row total">' +
+      '<span>合計</span>' +
+      '<span>¥' + total.toLocaleString() + '</span>' +
+    '</div>';
+
+  // お届け先
+  document.getElementById('userInfoSummary').innerHTML =
+    '<b>' + userData.name + '</b><br>' + (userData.address || '') + '<br>' + (userData.phone || '') + '<br>' + userData.email;
+
+  showStep('confirm');
+}
+
+function goBack() {
+  showStep('order');
+}
+
+// ===== 注文送信 =====
+
+async function submitOrder() {
+  const items = products.filter(p => quantities[p.id] > 0).map(p => ({
+    id: p.id, name: p.name, price: p.price, quantity: quantities[p.id],
+  }));
+
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.textContent = '処理中...';
+
+  const errEl = document.getElementById('confirmError');
+  errEl.style.display = 'none';
+
+  try {
+    const res = await api('createOrder', {
+      lineId: lineProfile.userId,
+      userName: userData.name,
+      email: userData.email,
+      items,
+    });
+    if (!res.success) throw new Error(res.error);
+
+    // Stripe決済ページへ遷移
+    liff.openWindow({ url: res.checkoutUrl, external: true });
+
+  } catch (err) {
+    errEl.textContent = 'エラー: ' + err.message;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Stripeで決済する';
+  }
+}
+
+// ===== APIコール =====
+
+async function api(action, data) {
+  const params = new URLSearchParams({
+    action,
+    payload: JSON.stringify(data || {}),
+  });
+  const res = await fetch(API_URL + '?' + params.toString());
+  if (!res.ok) throw new Error('通信エラー (' + res.status + ')');
+  return res.json();
+}
+
+// LIFF SDK動的ロード
+(function() {
+  const s = document.createElement('script');
+  s.src = 'https://static.line-scdn.net/liff/edge/2/sdk.js';
+  s.onload = () => init();
+  s.onerror = () => {
+    document.querySelector('[data-step="loading"] .loading-text').textContent = 'LIFF SDK読み込み失敗';
+  };
+  document.head.appendChild(s);
+})();
+
+// initはSDKロード後に呼ばれる（上のonloadで呼び出し）
+</script>
+</body>
+</html>
