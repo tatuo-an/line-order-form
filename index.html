@@ -717,12 +717,18 @@ function toggleWeekday(el) {
   updateDatePreview();
 }
 
+function localDateStr(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
 function calcDeliveryDates(start, end, weekdays) {
   const dates = [];
   const cur = new Date(start + 'T00:00:00');
   const endDate = new Date(end + 'T00:00:00');
   while (cur <= endDate && dates.length <= 60) {
-    if (weekdays.includes(cur.getDay())) dates.push(cur.toISOString().split('T')[0]);
+    if (weekdays.includes(cur.getDay())) dates.push(localDateStr(cur));
     cur.setDate(cur.getDate() + 1);
   }
   return dates;
