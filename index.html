@@ -298,6 +298,29 @@
     .time-slot.selected { border-color: var(--green); background: #f0fbf4; color: var(--green-dark); font-weight: 600; }
     .time-slot small { font-size: 11px; display: block; }
 
+    /* スケジュール切替 */
+    .schedule-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
+    .sch-btn {
+      flex: 1; padding: 10px; border: 1.5px solid var(--border);
+      border-radius: 8px; background: white; font-size: 14px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .sch-btn.active { border-color: var(--green); background: #f0fbf4; color: var(--green-dark); }
+
+    /* 曜日セレクター */
+    .weekday-selector { display: flex; gap: 5px; }
+    .wday-btn {
+      flex: 1; padding: 9px 0; border: 1.5px solid var(--border);
+      border-radius: 8px; background: white; font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.15s;
+    }
+    .wday-btn.selected { border-color: var(--green); background: #f0fbf4; color: var(--green-dark); }
+
+    /* 配達日プレビュー */
+    .date-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+    .date-chip { background: #e8f5e9; border-radius: 20px; padding: 4px 12px; font-size: 12px; color: var(--green-dark); font-weight: 600; }
+    .date-count { font-size: 13px; color: var(--sub); margin-top: 6px; }
+
     /* ===== 合計バー ===== */
     .total-bar {
       position: fixed;
@@ -409,11 +432,51 @@
       </div>
     </div>
     <div class="card">
-      <div class="card-title">配達希望日時</div>
-      <div class="form-group">
-        <label>配達希望日 <span class="required">*</span></label>
-        <input type="date" id="deliveryDate">
+      <div class="card-title">配達スケジュール</div>
+
+      <div class="schedule-toggle">
+        <button class="sch-btn active" id="btnSingle" onclick="setScheduleType('single')">一回のみ</button>
+        <button class="sch-btn" id="btnRepeat" onclick="setScheduleType('repeat')">繰り返し</button>
       </div>
+
+      <!-- 一回のみ -->
+      <div id="singleSchedule">
+        <div class="form-group">
+          <label>配達希望日 <span class="required">*</span></label>
+          <input type="date" id="deliveryDate">
+        </div>
+      </div>
+
+      <!-- 繰り返し -->
+      <div id="repeatSchedule" style="display:none">
+        <div class="form-group">
+          <label>開始日 <span class="required">*</span></label>
+          <input type="date" id="repeatStart" onchange="updateDatePreview()">
+        </div>
+        <div class="form-group">
+          <label>終了日 <span class="required">*</span></label>
+          <input type="date" id="repeatEnd" onchange="updateDatePreview()">
+        </div>
+        <div class="form-group">
+          <label>曜日 <span class="required">*</span></label>
+          <div class="weekday-selector">
+            <button class="wday-btn" data-day="1" onclick="toggleWeekday(this)">月</button>
+            <button class="wday-btn" data-day="2" onclick="toggleWeekday(this)">火</button>
+            <button class="wday-btn" data-day="3" onclick="toggleWeekday(this)">水</button>
+            <button class="wday-btn" data-day="4" onclick="toggleWeekday(this)">木</button>
+            <button class="wday-btn" data-day="5" onclick="toggleWeekday(this)">金</button>
+            <button class="wday-btn" data-day="6" onclick="toggleWeekday(this)">土</button>
+            <button class="wday-btn" data-day="0" onclick="toggleWeekday(this)">日</button>
+          </div>
+        </div>
+        <div id="datePreview" style="display:none" class="form-group" style="margin-bottom:0">
+          <label>配達予定日</label>
+          <div id="datePreviewList" class="date-chips"></div>
+          <div id="datePreviewCount" class="date-count"></div>
+        </div>
+      </div>
+
+      <!-- 時間帯（共通） -->
       <div class="form-group" style="margin-bottom:0">
         <label>時間帯 <span class="required">*</span></label>
         <div class="time-slots">
@@ -469,6 +532,9 @@ let userData = null;
 let products = [];
 let quantities = {};
 let selectedTime = '';
+let scheduleType = 'single';
+let selectedWeekdays = [];
+let deliveryDates = [];
 
 // ===== 初期化 =====
 
@@ -632,6 +698,58 @@ function selectTime(el, time) {
   selectedTime = time;
 }
 
+function setScheduleType(type) {
+  scheduleType = type;
+  document.getElementById('btnSingle').classList.toggle('active', type === 'single');
+  document.getElementById('btnRepeat').classList.toggle('active', type === 'repeat');
+  document.getElementById('singleSchedule').style.display = type === 'single' ? '' : 'none';
+  document.getElementById('repeatSchedule').style.display = type === 'repeat' ? '' : 'none';
+}
+
+function toggleWeekday(el) {
+  const day = parseInt(el.getAttribute('data-day'), 10);
+  el.classList.toggle('selected');
+  if (el.classList.contains('selected')) {
+    if (!selectedWeekdays.includes(day)) selectedWeekdays.push(day);
+  } else {
+    selectedWeekdays = selectedWeekdays.filter(d => d !== day);
+  }
+  updateDatePreview();
+}
+
+function calcDeliveryDates(start, end, weekdays) {
+  const dates = [];
+  const cur = new Date(start + 'T00:00:00');
+  const endDate = new Date(end + 'T00:00:00');
+  while (cur <= endDate && dates.length <= 60) {
+    if (weekdays.includes(cur.getDay())) dates.push(cur.toISOString().split('T')[0]);
+    cur.setDate(cur.getDate() + 1);
+  }
+  return dates;
+}
+
+function fmtDate(dateStr) {
+  const d = new Date(dateStr + 'T00:00:00');
+  const days = ['日','月','火','水','木','金','土'];
+  return (d.getMonth() + 1) + '/' + d.getDate() + '(' + days[d.getDay()] + ')';
+}
+
+function updateDatePreview() {
+  const start = document.getElementById('repeatStart').value;
+  const end = document.getElementById('repeatEnd').value;
+  const preview = document.getElementById('datePreview');
+  if (!start || !end || start > end || selectedWeekdays.length === 0) {
+    preview.style.display = 'none';
+    return;
+  }
+  const dates = calcDeliveryDates(start, end, selectedWeekdays);
+  if (dates.length === 0) { preview.style.display = 'none'; return; }
+  document.getElementById('datePreviewList').innerHTML =
+    dates.map(function(d) { return '<span class="date-chip">' + fmtDate(d) + '</span>'; }).join('');
+  document.getElementById('datePreviewCount').textContent = '計 ' + dates.length + '回の配達';
+  preview.style.display = '';
+}
+
 async function loadProducts() {
   const res = await api('getProducts', {});
   if (!res.success) throw new Error(res.error);
@@ -640,12 +758,23 @@ async function loadProducts() {
   selectedTime = '';
   products.forEach(p => { quantities[p.id] = 0; });
 
+  // スケジュールリセット
+  scheduleType = 'single';
+  selectedWeekdays = [];
+  deliveryDates = [];
+  setScheduleType('single');
+  document.querySelectorAll('.wday-btn').forEach(b => b.classList.remove('selected'));
+  document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
+  document.getElementById('datePreview').style.display = 'none';
+
   // 最短翌日から選択可能
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  document.getElementById('deliveryDate').min = tomorrow.toISOString().split('T')[0];
+  const minDate = tomorrow.toISOString().split('T')[0];
+  document.getElementById('deliveryDate').min = minDate;
   document.getElementById('deliveryDate').value = '';
-  document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
+  document.getElementById('repeatStart').min = minDate;
+  document.getElementById('repeatEnd').min = minDate;
 
   renderProducts();
 }
@@ -691,33 +820,49 @@ function goToConfirm() {
   }));
   if (items.length === 0) { alert('商品を選択してください'); return; }
 
-  const deliveryDate = document.getElementById('deliveryDate').value;
-  if (!deliveryDate) { alert('配達希望日を選択してください'); return; }
+  // 配達日確定
+  if (scheduleType === 'single') {
+    const d = document.getElementById('deliveryDate').value;
+    if (!d) { alert('配達希望日を選択してください'); return; }
+    deliveryDates = [d];
+  } else {
+    const start = document.getElementById('repeatStart').value;
+    const end = document.getElementById('repeatEnd').value;
+    if (!start || !end) { alert('開始日と終了日を選択してください'); return; }
+    if (selectedWeekdays.length === 0) { alert('曜日を選択してください'); return; }
+    deliveryDates = calcDeliveryDates(start, end, selectedWeekdays);
+    if (deliveryDates.length === 0) { alert('選択した期間・曜日に配達日がありません'); return; }
+  }
   if (!selectedTime) { alert('時間帯を選択してください'); return; }
 
-  const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const perDelivery = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const total = perDelivery * deliveryDates.length;
 
   // 注文内容
   const summaryEl = document.getElementById('orderSummary');
+  const repeatNote = deliveryDates.length > 1 ? '（1回分）' : '';
   summaryEl.innerHTML = items.map(function(i) {
     return '<div class="order-row">' +
-      '<span>' + i.name + ' × ' + i.quantity + i.unit + '</span>' +
+      '<span>' + i.name + ' × ' + i.quantity + i.unit + repeatNote + '</span>' +
       '<span>¥' + (i.price * i.quantity).toLocaleString() + '</span>' +
     '</div>';
   }).join('') +
-    '<div class="order-row total">' +
-      '<span>合計</span>' +
-      '<span>¥' + total.toLocaleString() + '</span>' +
-    '</div>';
+  (deliveryDates.length > 1 ?
+    '<div class="order-row"><span style="color:var(--sub);font-size:13px">× ' + deliveryDates.length + '回分</span><span></span></div>' : '') +
+    '<div class="order-row total"><span>合計</span><span>¥' + total.toLocaleString() + '</span></div>';
 
-  // 配達日を表示用にフォーマット
-  const d = new Date(deliveryDate + 'T00:00:00');
-  const dateLabel = (d.getMonth() + 1) + '月' + d.getDate() + '日';
+  // スケジュール表示
+  let scheduleLabel;
+  if (deliveryDates.length === 1) {
+    scheduleLabel = fmtDate(deliveryDates[0]);
+  } else {
+    scheduleLabel = deliveryDates.map(fmtDate).join('　') + '<br>計' + deliveryDates.length + '回';
+  }
 
   // お届け先
   document.getElementById('userInfoSummary').innerHTML =
     '<b>' + userData.name + '</b><br>' + (userData.address || '') + '<br>' + (userData.phone || '') + '<br>' + userData.email +
-    '<br><br><b>配達希望：</b>' + dateLabel + ' ' + selectedTime;
+    '<br><br><b>配達希望：</b>' + scheduleLabel + '<br>' + selectedTime;
 
   showStep('confirm');
 }
@@ -746,7 +891,7 @@ async function submitOrder() {
       userName: userData.name,
       email: userData.email,
       items,
-      deliveryDate: document.getElementById('deliveryDate').value,
+      deliveryDates: deliveryDates,
       deliveryTime: selectedTime,
     });
     if (!res.success) throw new Error(res.error);
