@@ -535,6 +535,8 @@ let selectedTime = '';
 let scheduleType = 'single';
 let selectedWeekdays = [];
 let deliveryDates = [];
+let registrationPrefecture = '';
+let currentShipping = 0;
 
 // ===== 初期化 =====
 
@@ -563,6 +565,7 @@ async function init() {
     const res = await api('checkUser', { lineId: lineProfile.userId });
     if (res.registered) {
       userData = res.user;
+      userData.prefecture = extractPrefecture(res.user.address || '');
       await loadProducts();
       showStep('order');
     } else {
@@ -635,6 +638,7 @@ async function lookupPostal() {
     const json = await res.json();
     if (json.results) {
       const r = json.results[0];
+      registrationPrefecture = r.address1;
       document.getElementById('r_address').value = r.address1 + r.address2 + r.address3;
     } else {
       alert('住所が見つかりませんでした');
@@ -678,7 +682,8 @@ async function submitRegistration() {
     });
     if (!res.success) throw new Error(res.error);
 
-    userData = { name, email, address, phone };
+    const pref = registrationPrefecture || extractPrefecture(document.getElementById('r_address').value);
+    userData = { name, email, address, phone, prefecture: pref };
     await loadProducts();
     showStep('order');
   } catch (err) {
@@ -691,6 +696,52 @@ async function submitRegistration() {
 }
 
 // ===== 商品一覧 =====
+
+// ===== 送料計算 =====
+// [サイズ][ゾーン: 0=標準, 1=北海道, 2=北東北, 3=沖縄]
+const SHIPPING_TABLE = [
+  [0,  650, 250,  650],  // ≤2kg
+  [0,  800, 400, 1100],  // ≤5kg
+  [0,  900, 500, 1500],  // ≤10kg
+  [0,  950, 600, 1900],  // ≤15kg
+  [0, 1000, 600, 2200],  // ≤20kg
+  [0, 1000, 600, 2500],  // ≤25kg
+  [0, 1000, 600, 2800],  // ≤30kg
+  [0, 1000, 600, 3300],  // >30kg
+];
+const WEIGHT_LIMITS = [2, 5, 10, 15, 20, 25, 30, Infinity];
+
+function extractPrefecture(addr) {
+  const str = (addr || '').replace(/^\d[\d-]*\s*/, '');
+  const m = str.match(/^(北海道|東京都|大阪府|京都府|[^\s]{2,3}[都道府県])/);
+  return m ? m[1] : '';
+}
+
+function getShippingZone(pref) {
+  if (pref === '北海道') return 1;
+  if (['青森県','岩手県','秋田県'].indexOf(pref) >= 0) return 2;
+  if (pref === '沖縄県') return 3;
+  return 0;
+}
+
+function getProductWeightKg(name) {
+  const m = name.match(/（(\d+)kg）/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+function calcShipping(items, prefecture) {
+  const zone = getShippingZone(prefecture || '');
+  if (zone === 0) return 0;
+  const totalKg = items.reduce(function(sum, item) {
+    return sum + getProductWeightKg(item.name) * item.quantity;
+  }, 0);
+  let idx = 0;
+  for (let i = 0; i < WEIGHT_LIMITS.length; i++) {
+    if (totalKg <= WEIGHT_LIMITS[i]) { idx = i; break; }
+    idx = WEIGHT_LIMITS.length - 1;
+  }
+  return SHIPPING_TABLE[idx][zone];
+}
 
 function selectTime(el, time) {
   document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
@@ -773,10 +824,10 @@ async function loadProducts() {
   document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
   document.getElementById('datePreview').style.display = 'none';
 
-  // 最短翌日から選択可能
+  // 最短4日後から選択可能
   const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split('T')[0];
+  tomorrow.setDate(tomorrow.getDate() + 4);
+  const minDate = localDateStr(tomorrow);
   document.getElementById('deliveryDate').min = minDate;
   document.getElementById('deliveryDate').value = '';
   document.getElementById('repeatStart').min = minDate;
@@ -842,17 +893,22 @@ function goToConfirm() {
   if (!selectedTime) { alert('時間帯を選択してください'); return; }
 
   const perDelivery = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
-  const total = perDelivery * deliveryDates.length;
+  const shippingPerDelivery = calcShipping(items, userData.prefecture || '');
+  currentShipping = shippingPerDelivery * deliveryDates.length;
+  const total = (perDelivery + shippingPerDelivery) * deliveryDates.length;
 
   // 注文内容
   const summaryEl = document.getElementById('orderSummary');
   const repeatNote = deliveryDates.length > 1 ? '（1回分）' : '';
+  const prefLabel = userData.prefecture ? '（' + userData.prefecture + '）' : '';
   summaryEl.innerHTML = items.map(function(i) {
     return '<div class="order-row">' +
       '<span>' + i.name + ' × ' + i.quantity + i.unit + repeatNote + '</span>' +
       '<span>¥' + (i.price * i.quantity).toLocaleString() + '</span>' +
     '</div>';
   }).join('') +
+  (shippingPerDelivery > 0 ?
+    '<div class="order-row"><span>送料' + prefLabel + repeatNote + '</span><span>¥' + shippingPerDelivery.toLocaleString() + '</span></div>' : '') +
   (deliveryDates.length > 1 ?
     '<div class="order-row"><span style="color:var(--sub);font-size:13px">× ' + deliveryDates.length + '回分</span><span></span></div>' : '') +
     '<div class="order-row total"><span>合計</span><span>¥' + total.toLocaleString() + '</span></div>';
@@ -899,6 +955,7 @@ async function submitOrder() {
       items,
       deliveryDates: deliveryDates,
       deliveryTime: selectedTime,
+      shipping: currentShipping,
     });
     if (!res.success) throw new Error(res.error);
 
