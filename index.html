@@ -300,11 +300,17 @@
 
     /* グループヘッダー */
     .product-group-header {
-      font-size: 13px; font-weight: 700; color: var(--green-dark);
-      padding: 12px 2px 6px; margin-top: 4px;
+      font-size: 14px; font-weight: 700; color: var(--green-dark);
+      padding: 12px 4px; margin-top: 8px;
       border-bottom: 2px solid #e8f5e9;
+      display: flex; justify-content: space-between; align-items: center;
+      cursor: pointer; user-select: none;
     }
-    .product-group-header:first-child { padding-top: 0; }
+    .product-group-header:first-child { margin-top: 0; }
+    .group-arrow { font-size: 12px; transition: transform 0.2s; }
+    .product-group-header.closed .group-arrow { transform: rotate(-90deg); }
+    .product-group-body { overflow: hidden; transition: max-height 0.25s ease; }
+    .product-group-body.closed { max-height: 0 !important; }
 
     /* 在庫なし */
     .product-item.sold-out { opacity: 0.55; }
@@ -858,8 +864,11 @@ function renderProducts() {
   });
 
   let html = '';
-  groupOrder.forEach(function(g) {
-    html += '<div class="product-group-header">' + g + '</div>';
+  groupOrder.forEach(function(g, gi) {
+    const gid = 'grp-' + gi;
+    html += '<div class="product-group-header" id="hdr-' + gid + '" onclick="toggleGroup(\'' + gid + '\')">' +
+      '<span>' + g + '</span><span class="group-arrow">▼</span></div>';
+    html += '<div class="product-group-body" id="' + gid + '">';
     groupMap[g].forEach(function(p) {
       const soldOut = p.stock <= 0;
       const dis = soldOut ? ' disabled' : '';
@@ -876,9 +885,29 @@ function renderProducts() {
         '</div>' +
       '</div>';
     });
+    html += '</div>';
   });
   list.innerHTML = html;
+
+  // 初期の高さをセット
+  document.querySelectorAll('.product-group-body').forEach(function(el) {
+    el.style.maxHeight = el.scrollHeight + 'px';
+  });
   updateTotal();
+}
+
+function toggleGroup(gid) {
+  const body = document.getElementById(gid);
+  const hdr = document.getElementById('hdr-' + gid);
+  const isOpen = !body.classList.contains('closed');
+  if (isOpen) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(function() { body.classList.add('closed'); });
+  } else {
+    body.classList.remove('closed');
+    body.style.maxHeight = body.scrollHeight + 'px';
+  }
+  hdr.classList.toggle('closed', isOpen);
 }
 
 function changeQty(id, delta) {
