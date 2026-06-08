@@ -845,11 +845,16 @@ async function loadProducts() {
   // 最短配達日（APIから取得、デフォルト今日+4日）
   const _minFallback = new Date();
   _minFallback.setDate(_minFallback.getDate() + 4);
-  const minDate = res.minDeliveryDate || localDateStr(_minFallback);
-  document.getElementById('deliveryDate').min = minDate;
-  document.getElementById('deliveryDate').value = '';
-  document.getElementById('repeatStart').min = minDate;
-  document.getElementById('repeatEnd').min = minDate;
+  window._minDeliveryDate = res.minDeliveryDate || localDateStr(_minFallback);
+  const minDate = window._minDeliveryDate;
+  ['deliveryDate','repeatStart','repeatEnd'].forEach(function(id) {
+    const el = document.getElementById(id);
+    el.min = minDate;
+    el.value = '';
+    el.onchange = function() {
+      if (this.value && this.value < minDate) this.value = minDate;
+    };
+  });
 
   renderProducts();
 }
@@ -938,14 +943,17 @@ function goToConfirm() {
   if (items.length === 0) { alert('商品を選択してください'); return; }
 
   // 配達日確定
+  const _min = window._minDeliveryDate || '';
   if (scheduleType === 'single') {
     const d = document.getElementById('deliveryDate').value;
     if (!d) { alert('配達希望日を選択してください'); return; }
+    if (_min && d < _min) { alert('配達希望日は ' + fmtDate(_min) + ' 以降を選択してください'); return; }
     deliveryDates = [d];
   } else {
     const start = document.getElementById('repeatStart').value;
     const end = document.getElementById('repeatEnd').value;
     if (!start || !end) { alert('開始日と終了日を選択してください'); return; }
+    if (_min && start < _min) { alert('開始日は ' + fmtDate(_min) + ' 以降を選択してください'); return; }
     if (selectedWeekdays.length === 0) { alert('曜日を選択してください'); return; }
     deliveryDates = calcDeliveryDates(start, end, selectedWeekdays);
     if (deliveryDates.length === 0) { alert('選択した期間・曜日に配達日がありません'); return; }
