@@ -842,8 +842,10 @@ async function loadProducts() {
   document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
   document.getElementById('datePreview').style.display = 'none';
 
-  // 最短配達日（APIから取得）
-  const minDate = res.minDeliveryDate || localDateStr(new Date());
+  // 最短配達日（APIから取得、デフォルト今日+4日）
+  const _minFallback = new Date();
+  _minFallback.setDate(_minFallback.getDate() + 4);
+  const minDate = res.minDeliveryDate || localDateStr(_minFallback);
   document.getElementById('deliveryDate').min = minDate;
   document.getElementById('deliveryDate').value = '';
   document.getElementById('repeatStart').min = minDate;
