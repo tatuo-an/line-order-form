@@ -298,6 +298,18 @@
     .time-slot.selected { border-color: var(--green); background: #f0fbf4; color: var(--green-dark); font-weight: 600; }
     .time-slot small { font-size: 11px; display: block; }
 
+    /* グループヘッダー */
+    .product-group-header {
+      font-size: 13px; font-weight: 700; color: var(--green-dark);
+      padding: 12px 2px 6px; margin-top: 4px;
+      border-bottom: 2px solid #e8f5e9;
+    }
+    .product-group-header:first-child { padding-top: 0; }
+
+    /* 在庫なし */
+    .product-item.sold-out { opacity: 0.55; }
+    .sold-out-badge { font-size: 11px; color: var(--error); font-weight: 600; margin-left: 4px; }
+
     /* スケジュール切替 */
     .schedule-toggle { display: flex; gap: 8px; margin-bottom: 16px; }
     .sch-btn {
@@ -824,10 +836,8 @@ async function loadProducts() {
   document.querySelectorAll('.time-slot').forEach(b => b.classList.remove('selected'));
   document.getElementById('datePreview').style.display = 'none';
 
-  // 最短4日後から選択可能
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 4);
-  const minDate = localDateStr(tomorrow);
+  // 最短配達日（APIから取得）
+  const minDate = res.minDeliveryDate || localDateStr(new Date());
   document.getElementById('deliveryDate').min = minDate;
   document.getElementById('deliveryDate').value = '';
   document.getElementById('repeatStart').min = minDate;
@@ -838,24 +848,43 @@ async function loadProducts() {
 
 function renderProducts() {
   const list = document.getElementById('productList');
-  list.innerHTML = products.map(function(p) {
-    return '<div class="product-item" id="pi-' + p.id + '">' +
-      '<div class="product-info">' +
-        '<div class="product-name">' + p.name + '</div>' +
-        '<div class="product-price">¥' + p.price.toLocaleString() + ' / ' + p.unit + '</div>' +
-      '</div>' +
-      '<div class="qty-control">' +
-        '<button class="qty-btn" onclick="changeQty(\'' + p.id + '\', -1)">−</button>' +
-        '<div class="qty-num" id="qty-' + p.id + '">0</div>' +
-        '<button class="qty-btn plus" onclick="changeQty(\'' + p.id + '\', 1)">＋</button>' +
-      '</div>' +
-    '</div>';
-  }).join('');
+  // グループ別に整理
+  const groupMap = {};
+  const groupOrder = [];
+  products.forEach(function(p) {
+    const g = p.group || 'その他';
+    if (!groupMap[g]) { groupMap[g] = []; groupOrder.push(g); }
+    groupMap[g].push(p);
+  });
+
+  let html = '';
+  groupOrder.forEach(function(g) {
+    html += '<div class="product-group-header">' + g + '</div>';
+    groupMap[g].forEach(function(p) {
+      const soldOut = p.stock <= 0;
+      const dis = soldOut ? ' disabled' : '';
+      html += '<div class="product-item' + (soldOut ? ' sold-out' : '') + '" id="pi-' + p.id + '">' +
+        '<div class="product-info">' +
+          '<div class="product-name">' + p.name + '</div>' +
+          '<div class="product-price">¥' + p.price.toLocaleString() + ' / ' + p.unit +
+            (soldOut ? '<span class="sold-out-badge">在庫なし</span>' : '') + '</div>' +
+        '</div>' +
+        '<div class="qty-control">' +
+          '<button class="qty-btn"' + dis + ' onclick="changeQty(\'' + p.id + '\', -1)">−</button>' +
+          '<div class="qty-num" id="qty-' + p.id + '">0</div>' +
+          '<button class="qty-btn plus"' + dis + ' onclick="changeQty(\'' + p.id + '\', 1)">＋</button>' +
+        '</div>' +
+      '</div>';
+    });
+  });
+  list.innerHTML = html;
   updateTotal();
 }
 
 function changeQty(id, delta) {
-  quantities[id] = Math.max(0, (quantities[id] || 0) + delta);
+  const p = products.find(function(x) { return x.id === id; });
+  const maxQty = p ? p.stock : 999;
+  quantities[id] = Math.max(0, Math.min(maxQty, (quantities[id] || 0) + delta));
   document.getElementById('qty-' + id).textContent = quantities[id];
   document.getElementById('pi-' + id).classList.toggle('selected', quantities[id] > 0);
   updateTotal();
